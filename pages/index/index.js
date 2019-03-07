@@ -2,6 +2,7 @@
 let { chooseLocation, getLocation, 
   calculateDistance, direction } = require("../../common/location");
 let { toast } = require("../../common/message");
+import regeneratorRuntime, { async } from "../../utils/runtime";
 
 Page({
   data: {
@@ -44,6 +45,7 @@ Page({
   
   calculateDistance: async function() {
     try {
+      this.clearMap();
       let { markers, markerId } = this.data;
       let result = await chooseLocation({ markers, markerId });
       let { longitude, latitude } = result;
@@ -61,6 +63,7 @@ Page({
 
   direction: async function() {
     try {
+      this.clearMap();
       let { markers, markerId } = this.data;
       let chooseLocationRes = await chooseLocation({ markers, markerId });
       let { longitude, latitude } = chooseLocationRes;
@@ -71,6 +74,32 @@ Page({
     } catch (error) {
       console.log(error);
       toast("路线规划出错");
+    }
+  },
+
+  multiPartDirection: async function() {
+    try {
+      let { markers, markerId, 
+        polyline, distance, duration } = this.data;
+      let chooseLocationRes = await chooseLocation({ markers, markerId });
+      let { longitude, latitude } = chooseLocationRes;
+      let directionRes;
+      if (markers.length == 1) {
+        directionRes = await direction({ mode: "walking",
+          to: { longitude, latitude }
+        });
+      } else {
+        let lastLatitude = markers[markers.length - 2].latitude;
+        let lastLongitude = markers[markers.length - 2].longitude;
+        directionRes = await direction({ mode: "walking",
+          from: { longitude: lastLongitude, latitude: lastLatitude },
+          to: { longitude, latitude }
+        }, polyline, distance, duration);
+      }
+      this.setData({ ...chooseLocationRes, ...directionRes });
+    } catch (error) {
+      console.log(error);
+      toast("分段规划出错");
     }
   },
 

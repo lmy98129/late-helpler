@@ -16,7 +16,6 @@ const chooseLocation = (opt) => {
         if (opt === undefined) resolve({ longitude, latitude });
         else {
           let { markers, markerId } = opt;
-          markers.pop();
           markers.push({
             id: markerId,
             latitude, longitude, iconPath,
@@ -27,7 +26,11 @@ const chooseLocation = (opt) => {
           });
         }
       },
-      fail: (error) => reject(error),
+      fail: (error) => {
+        if (!error.errMsg.indexOf("fail cancel")) {
+          reject(error)
+        }
+      },
     })
   })
 }
@@ -91,12 +94,12 @@ const calculateDistance = (opt) => {
  * 路径规划
  * @param {*} opt 
  */
-const direction = (opt) => {
+const direction = (opt, polyline = [], distance = 0, duration = 0) => {
   return new Promise((resolve, reject) => {
+    console.log(opt);
     opt = { ...opt, 
       success: (res) => {
         let { routes } = res.result;
-        let polyline = [], distance = 0, duration = 0;
         for (let route of routes) {
           let coors = route.polyline;
           let points = [];
@@ -107,8 +110,8 @@ const direction = (opt) => {
             points.push({ latitude: coors[i], longitude: coors[i + 1] })
           }
           polyline.push({ points, color: "#069F51", width: 4 });
-          distance = route.distance;
-          duration = route.duration;
+          distance += route.distance;
+          duration += route.duration;
         }
         resolve({ polyline, distance, duration });
       },
