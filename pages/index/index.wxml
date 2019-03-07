@@ -16,13 +16,15 @@
   <cover-view class="hint">距离：{{distance}}米</cover-view>
   <cover-view class="hint" wx:if="{{duration > 0}}">所需时间: {{duration}}分钟</cover-view>
   <cover-view class="btn-wrap">
-    <button bind:tap="chooseLocation">选择当前地址</button>
-  </cover-view>
-  <cover-view class="btn-wrap">
-    <button bind:tap="startMeasure">开始精确测量距离</button>
-    <button bind:tap="endMeasure">结束测量</button>
+    <button bind:tap="calculateDistance">距离测量</button>
   </cover-view>
   <cover-view class="btn-wrap">
     <button bind:tap="direction">路线规划</button>
+  </cover-view>
+  <cover-view class="btn-wrap">
+    <button bind:tap="multiPartDirection">分段规划</button>
+  </cover-view>
+  <cover-view class="btn-wrap">
+    <button bind:tap="clearMap">重置地图</button>
   </cover-view>
 </cover-view>
