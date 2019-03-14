@@ -14,6 +14,14 @@ const formatNumber = n => {
   return n[1] ? n : '0' + n
 }
 
-module.exports = {
+// 不能用箭头函数，否则this将绑定本函数所在的父上下文而不绑定Vue.prototype了
+const setData = function(obj) {
+  for (let key in obj) {
+    this[key] = obj[key];
+  }
+}
+
+export {
   formatTime,
+  setData,
 }
