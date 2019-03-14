@@ -5,8 +5,28 @@ const qqmapsdk = new QQMapWX({
 })
 
 /**
+ * 
+ * @param {Object} opt - 传入的参数对象
+ * @param {Object[]} opt.markers - 标记点数组
+ * @param {Number} opt.markerId - 标记点数组元素的key
+ * @param {Number} opt.latitude - 将要标记的点的经度
+ * @param {Number} opt.longitude - 将要标记的点的纬度
+ */
+const markLocation = ({ markers, markerId, latitude, longitude }) => {
+  markerId++;
+  markers.push({ 
+    id: markerId, latitude, longitude, iconPath, 
+  });
+  return {
+    markers, markerId, longitude, latitude, 
+  }
+}
+
+/**
  * 选择一个地点，若传入opt则会帮助地图标点
- * @param {*} opt
+ * @param {Object} opt - 地图中的标记点对象
+ * @param {Object[]} opt.markers - 标记点数组
+ * @param {Number} opt.markerId - 标记点数组元素的key
  */
 const chooseLocation = (opt) => {
   return new Promise((resolve, reject) => {
@@ -16,14 +36,9 @@ const chooseLocation = (opt) => {
         if (opt === undefined) resolve({ longitude, latitude });
         else {
           let { markers, markerId } = opt;
-          markers.push({
-            id: markerId,
-            latitude, longitude, iconPath,
-          })
-          markerId++;
-          resolve({
-            longitude, latitude, markers, markerId
-          });
+          resolve(markLocation({ 
+            markers, markerId, latitude, longitude 
+          }));
         }
       },
       fail: (error) => {
@@ -37,7 +52,7 @@ const chooseLocation = (opt) => {
 
 /**
  * 获取当前位置
- * @param {*} type 经纬度信息格式
+ * @param {string} type - 经纬度信息格式
  */
 const getLocation = (type = 'gcj02') => {
   return new Promise((resolve, reject) => {
@@ -50,10 +65,10 @@ const getLocation = (type = 'gcj02') => {
 
 /**
  * 实时计算两点之间的距离，用于实时轨迹测量
- * @param {*} lat1 点1的经度
- * @param {*} lng1 点1的纬度
- * @param {*} lat2 点2的经度
- * @param {*} lng2 点2的纬度
+ * @param {Number} lat1 - 点1的经度
+ * @param {Number} lng1 - 点1的纬度
+ * @param {Number} lat2 - 点2的经度
+ * @param {Number} lng2 - 点2的纬度
  */
 const realTimeDistance = (lat1, lng1, lat2, lng2) => {
   let dis = 0;
@@ -68,13 +83,17 @@ const realTimeDistance = (lat1, lng1, lat2, lng2) => {
 
 /**
  * 将经纬度换算成弧度制
- * @param {*} d 经纬度
+ * @param {Number} d - 经纬度
  */
 const toRadians = (d) => { return d * Math.PI / 180; }
 
 /**
  * 计算两点间距离
- * @param {*} opt { from, to }
+ * @param {Object} opt 
+ * @param {Object} [opt.from] - 默认为当前地点
+ * @param {Object[]} opt.to - 需要计算的目标点，一般为1个
+ * @param {Number} opt.to[].longitude - 目标点的经度
+ * @param {Number} opt.to[].latitude - 目标点的纬度
  */
 const calculateDistance = (opt) => {
   return new Promise((resolve, reject) => {
@@ -92,7 +111,11 @@ const calculateDistance = (opt) => {
 
 /**
  * 路径规划
- * @param {*} opt 
+ * @param {Object} opt - 传入参数对象
+ * @param {string} opt.mode - 路径规划值
+ * @param {Object[]} [polyline=[]] - 路径点数组
+ * @param {Number} [distance = 0] - 距离累加，这里用于分段路径规划
+ * @param {Number} [duration = 0] - 用时累加，这里用于分段路径规划
  */
 const direction = (opt, polyline = [], distance = 0, duration = 0) => {
   return new Promise((resolve, reject) => {
@@ -126,4 +149,5 @@ export {
   realTimeDistance,
   calculateDistance,
   direction,
+  markLocation,
 }

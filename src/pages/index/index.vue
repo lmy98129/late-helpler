@@ -31,7 +31,13 @@
 </template>
 
 <script>
-import { chooseLocation, getLocation, calculateDistance, direction } from '../../common/location';
+import { 
+  chooseLocation, 
+  getLocation, 
+  calculateDistance, 
+  direction,
+  markLocation,
+} from '../../common/location';
 import { toast } from '../../common/message'
 
 export default {
