@@ -1,17 +1,18 @@
 <template>
   <div >
-    <map 
-      :style="{width: '100%', height: mapHeight + 'px'}"
-      :longitude="longitude"
-      :latitude="latitude"
-      :markers="markers"
-      :polyline="polyline"
-      show-location
-      enable-3D
-      enable-overlooking
-      enable-rotate
-    >
-    </map>
+    <div class="map-box">
+      <map
+        id="navi_map"
+        :longitude="longitude"
+        :latitude="latitude"
+        :markers="markers"
+        :polyline="polyline"
+        enable-3D
+        enable-overlooking
+        enable-rotate
+      >
+      </map>
+    </div>
 
   <cover-view class="pannel-wrap">
     <cover-view class="hint">距离：{{distance}}米</cover-view>
@@ -61,24 +62,41 @@ export default {
   methods: {
     async getCurrentLocation() {
       try {
-        let { longitude, latitude } = await getLocation();
-        this.setData({ longitude, latitude });
+        let { markerId, markers } = this;
+        let res = await getLocation(undefined, markers, markerId);
+        this.setData(res);
       } catch (error) {
         console.log(error);
         toast('获取当前位置出错');
       }
     },
 
+    includePath() {
+      let map = wx.createMapContext('navi_map');
+      let { markers } = this;
+      map.includePoints({
+        points: markers,
+        padding: [80, 80, 80, 80],
+      });
+    },
+
     async calculateDistance() {
       try {
-        this.clearMap();
         let { markers, markerId } = this;
         let result = await chooseLocation({ markers, markerId });
         let { longitude, latitude } = result;
         let { distance } = await calculateDistance({ 
           to: [{ longitude, latitude }] 
         });
-        this.setData({ ...result, distance })
+        delete result.longitude;
+        delete result.latitude;
+        let polyline = [{ 
+          points: [{ latitude, longitude }, { latitude: this.latitude, longitude: this.longitude }],
+          color: '#069F51', width: 4 
+        }]
+        console.log(result);
+        this.setData({ ...result, distance, polyline });
+        this.includePath();
       } catch (error) {
         console.log(error);
         toast('距离测量出错');
@@ -87,7 +105,6 @@ export default {
 
     async clearMap() {
       try {
-        let { latitude, longitude } = await getLocation();
         let initData = {
           markers: [],
           polyline: [{
@@ -97,10 +114,9 @@ export default {
           }], 
           distance: 0, 
           duration: 0,
-          markerId: 0,
-          latitude, longitude
         }
         this.setData(initData);
+        this.getCurrentLocation();
       } catch (error) {
         console.log(error);
         toast('重置地图出错');
@@ -109,14 +125,16 @@ export default {
 
     async direction() {
       try {
-        this.clearMap();
         let { markers, markerId } = this;
         let chooseLocationRes = await chooseLocation({ markers, markerId });
         let { longitude, latitude } = chooseLocationRes;
+        delete chooseLocationRes.longitude;
+        delete chooseLocationRes.latitude;
         let directionRes = await direction({ mode: 'walking',
           to: { longitude, latitude }
         });
         this.setData({ ...chooseLocationRes, ...directionRes });
+        this.includePath();
       } catch (error) {
         console.log(error);
         toast('路线规划出错');
@@ -139,6 +157,19 @@ export default {
 </script>
 
 <style scoped>
+.map-box {
+  position:absolute;
+  top: 0;
+  bottom: 230px;
+  left: 0px;
+  right: 0px;
+}
+
+#navi_map{
+  width: 100%;
+  height: 100%;
+}
+
 .btn-wrap {
   margin-top: 30rpx;
   width: 95%;
@@ -158,15 +189,16 @@ export default {
 
 .pannel-wrap {
   position: fixed;
-  bottom: 30rpx;
-  width: 92%;
-  border-radius: 30rpx;
+  bottom: -40rpx;
+  width: 100%;
+  border-radius: 40rpx;
+  padding-bottom: 40rpx;
   background: #fff;
   left: 0;
   right: 0;
   margin-left: auto;
   margin-right: auto;
-  padding-left: 10rpx;
-  padding-right: 10rpx;
+  /* box-shadow: 0 -10rpx 50rpx 5rpx #ccc; */
+  border-top: 3rpx solid #ccc;
 }
 </style>

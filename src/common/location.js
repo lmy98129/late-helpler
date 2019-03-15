@@ -14,11 +14,18 @@ const qqmapsdk = new QQMapWX({
  */
 const markLocation = ({ markers, markerId, latitude, longitude }) => {
   markerId++;
-  markers.push({ 
+  if (markers.length >= 2) {
+    for (let i=1; i< markers.length; i++) {
+      markers.splice(i, 1);
+    }
+  } else if (markers.length === 0) {
+    markerId = 0;
+  }
+  markers.push({
     id: markerId, latitude, longitude, iconPath, 
   });
   return {
-    markers, markerId, longitude, latitude, 
+    markerId, markers
   }
 }
 
@@ -36,9 +43,9 @@ const chooseLocation = (opt) => {
         if (opt === undefined) resolve({ longitude, latitude });
         else {
           let { markers, markerId } = opt;
-          resolve(markLocation({ 
+          resolve({...markLocation({ 
             markers, markerId, latitude, longitude 
-          }));
+          }), longitude, latitude});
         }
       },
       fail: (error) => {
@@ -53,11 +60,21 @@ const chooseLocation = (opt) => {
 /**
  * 获取当前位置
  * @param {string} type - 经纬度信息格式
+ * @param {Object[]} markers - 标记点数组
+ * @param {Number} markerId - 标记点数组元素的key
  */
-const getLocation = (type = 'gcj02') => {
+const getLocation = (type = 'gcj02', markers, markerId) => {
   return new Promise((resolve, reject) => {
     wx.getLocation({
-      type, success: (res) => resolve(res),
+      type, success: (res) => {
+        let { longitude, latitude } = res;
+        if (markers === undefined || !markerId === undefined) resolve({ longitude, latitude });
+        else {
+          resolve({...markLocation({ 
+            markers, markerId, latitude, longitude 
+          }), longitude, latitude });
+        }
+      },
       fail: (error) => reject(error),
     })
   })
