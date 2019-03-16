@@ -9,23 +9,22 @@
 </template>
 
 <script>
-// Use Vuex
-import store from './store'
+import { mapState } from 'vuex';
 
 export default {
   computed: {
-    count () {
-      return store.state.count
-    }
+    ...mapState('counter', [
+      'count',
+    ])
   },
   methods: {
     increment () {
-      store.commit('increment')
+      this.$store.commit('counter/increment');
     },
     decrement () {
-      store.commit('decrement')
+      this.$store.commit('counter/decrement');
     }
-  }
+  },
 }
 </script>
 

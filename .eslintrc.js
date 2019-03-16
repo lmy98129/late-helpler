@@ -30,6 +30,7 @@ module.exports = {
     'space-before-blocks': 0,
     'no-useless-call': 0,
     'one-var': 0,
+    'no-return-assign': 0,
     // allow paren-less arrow functions
     'arrow-parens': 0,
     // allow async-await

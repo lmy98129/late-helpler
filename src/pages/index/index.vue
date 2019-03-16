@@ -49,34 +49,56 @@
         </div>
       </div>
       <div v-else class="pannel-main-wrap navigating">
-        <scroll-view class="scroll-view" scroll-y='true' style="height: 100%;">
-          <div class="inner-scroll-view">
-            <div class="hint-wrap">
-              <div class="hint-title">直线距离</div>
-              <div class="hint-content">
-                <div class="number">{{setDirectDistance}}</div>
-                <div class="unit">{{directDistUnit}}</div>
+        <swiper 
+          class="pannel-main-swiper"
+          :style="{ height: pannelHeight-60 + 'px' }" 
+          :indicator-dots="currentRouteInfo.length > 2"
+          @change="swiperChange"
+          :current="current"
+          v-if="currentRouteInfo !== undefined && currentRouteInfo.length > 0"
+          >
+          <swiper-item v-for="(route, index) in currentRouteInfo" :key="index">
+            <scroll-view class="scroll-view" scroll-y='true' style="height: 94%;">
+              <div class="inner-scroll-view">
+                <div class="hint-outer-wrap">
+                  <div class="hint-wrap">
+                    <div class="hint-title">直线距离</div>
+                    <div class="hint-content">
+                      <div class="number">{{setDirectDistance}}</div>
+                      <div class="unit">{{directDistUnit}}</div>
+                    </div>
+                  </div>
+                  <div class="hint-wrap">
+                    <div class="hint-title">路程距离</div>
+                    <div class="hint-content">
+                      <div class="number">{{route.routeDistance}}</div>
+                      <div class="unit">{{route.routeDistUnit}}</div>
+                    </div>
+                  </div>
+                  <div class="hint-wrap" v-if="route.duration > 0">
+                    <div class="hint-title">所需时间</div>
+                    <div class="hint-content">
+                      <div class="number" v-if="route.durationHours > 0">{{route.durationHours}}</div>
+                      <div class="unit" v-if="route.durationHours > 0">小时</div>
+                      <div class="number">{{route.durationMin}}</div>
+                      <div class="unit">{{route.durationMinUnit}}</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="hint">以上结果由腾讯地图提供，仅供参考</div>
               </div>
+            </scroll-view>
+          </swiper-item>
+        </swiper>
+        <div class="hint-outer-wrap empty-info" v-else>
+          <div class="hint-wrap">
+            <div class="hint-title">直线距离</div>
+            <div class="hint-content">
+              <div class="number">{{setDirectDistance}}</div>
+              <div class="unit">{{directDistUnit}}</div>
             </div>
-            <div class="hint-wrap">
-              <div class="hint-title">路程距离</div>
-              <div class="hint-content">
-                <div class="number">{{setRouteDistance}}</div>
-                <div class="unit">{{routeDistUnit}}</div>
-              </div>
-            </div>
-            <div class="hint-wrap" v-if="duration > 0">
-              <div class="hint-title">所需时间</div>
-              <div class="hint-content">
-                <div class="number" v-if="durationHours > 0">{{durationHours}}</div>
-                <div class="unit" v-if="durationHours > 0">小时</div>
-                <div class="number">{{setDurationMin}}</div>
-                <div class="unit">{{durationMinUnit}}</div>
-              </div>
-            </div>
-
           </div>
-        </scroll-view>
+        </div>
       </div>
     </div>
 
@@ -91,12 +113,17 @@ import {
   getCenterLocation,
   direction,
   reverseGeocoder,
+  switchLocation,
+  setDistance,
+  setDuration,
 } from '../../common/location';
 import { toast } from '../../common/message';
+import { mapState } from 'vuex';
 
 const departIconPath = '/static/images/current-location.png';
 const destIconPath = '/static/images/location.png';
 const errorIconPath = '/static/images/error.png';
+const modes = ['walking', 'bicycling', 'driving', 'transit'];
 
 export default {
   data () {
@@ -104,24 +131,16 @@ export default {
       longitude: '113.324520',
       latitude: '',
       markers: [],
-      polyline: [{
-        points: [],
-        color: '#069F51',
-        width: 4
-      }],
+      polyline: [],
       markerId: 1,
       directDistance: 0,
-      routeDistance: 0,
-      duration: 0,
-      durationHours: 0,
       pannelHeight: 0,
       topTab: 0,
       isNavigationStarted: false,
       departPointName: '',
       destPointName: '',
-      directDistUnit: '米',
-      routeDistUnit: '米',
-      durationMinUnit: '分钟',
+      directDistUnit: '',
+      current: 0,
     }
   },
 
@@ -136,47 +155,23 @@ export default {
     },
     setDirectDistance() {
       let { directDistance } = this;
-      if (isNaN(directDistance) || directDistance <= 0) {
-        this.setData({ directDistUnit: '' });
-        return 0;
-      } else if (directDistance > 1000) {
-        this.setData({ directDistUnit: '公里' });
-        let kMeter = directDistance / 1000;
-        return Math.round(kMeter*10) / 10;
-      } else {
-        this.setData({ directDistUnit: '米' });
-        return directDistance;
-      }
+      let { distUnit, distance } = setDistance(directDistance);
+      this.setData({ directDistUnit: distUnit });
+      return distance;
     },
-    setRouteDistance() {
-      let { routeDistance } = this;
-      if (isNaN(routeDistance) || routeDistance <= 0) {
-        this.setData({ routeDistUnit: '' });
-        return 0;
-      } else if (routeDistance > 1000) {
-        this.setData({ routeDistUnit: '公里' });
-        let kMeter = routeDistance / 1000;
-        return Math.round(kMeter*10) / 10;
-      } else {
-        this.setData({ routeDistUnit: '米' });
-        return routeDistance;
+    ...mapState('location', {
+      currentRouteInfo(state) {
+        let { topTab } = this;
+        let mode = modes[topTab];
+        let currentRouteInfo = state[`${mode}RouteInfo`];
+        if (currentRouteInfo[0] && currentRouteInfo[0].polyline) {
+          this.setData({ polyline: currentRouteInfo[0].polyline });
+        } else {
+          this.setData({ polyline: [] });
+        }
+        return currentRouteInfo;
       }
-    },
-    setDurationMin() {
-      let { duration } = this;
-      if (isNaN(duration) || duration <= 0) {
-        this.setData({ durationMinUnit: '' });
-        return 0;
-      } else if (duration > 60) {
-        let durationHours = Math.ceil(duration / 60);
-        let durationMin = duration % 60;
-        this.setData({ durationHours, durationMinUnit: '分钟' });
-        return durationMin;
-      } else {
-        this.setData({ durationHours: 0, durationMinUnit: '分钟' });
-        return duration;
-      }
-    }
+    })
   },
 
   methods: {
@@ -189,33 +184,26 @@ export default {
         this.setData({ topTab });
         if (isNavigationStarted) {
           this.startNavigation();
+          this.setData({ current: -1 });
+          this.setData({ current: 0 });
         }
+      }
+    },
+
+    swiperChange(e) {
+      let { current } = e.target;
+      let { topTab } = this;
+      let mode = modes[topTab];
+      let currentRouteInfo = this.$store.state.location[`${mode}RouteInfo`];
+      if (currentRouteInfo[current] && currentRouteInfo[current].polyline) {
+        this.setData({ polyline: currentRouteInfo[current].polyline });
       }
     },
 
     switchLocation() {
       let { markers, departPointName, destPointName } = this;
-      let departIndex = markers.findIndex(x => x.id === 0);
-      let destIndex = markers.findIndex(x => x.id === 1);
-      if (departIndex >= 0 && destIndex >= 0) {
-        markers[departIndex].id = 1;
-        markers[destIndex].id = 0;
-
-        markers[departIndex].iconPath = destIconPath;
-        markers[destIndex].iconPath = departIconPath;
-      } else if (departIndex >= 0 || destIndex >= 0) {
-        if (departIndex >= 0) {
-          markers[departIndex].iconPath = destIconPath;
-          markers[departIndex].id = 1;
-        } else if (destIndex >= 0) {
-          markers[destIndex].iconPath = departIconPath;
-          markers[departIndex].id = 0
-        }
-      }
-      let tmp = departPointName;
-      departPointName = destPointName;
-      destPointName = tmp;
-      this.setData({ departPointName, destPointName });
+      let res = switchLocation(markers, departPointName, destPointName);
+      this.setData(res);
     },
 
     async getCurrentLocation() {
@@ -352,15 +340,22 @@ export default {
           to: [destPoint],
         });
 
-        let modes = ['walking', 'bicycling', 'driving', 'transit'];
         let mode = modes[topTab];
 
-        let directionRes = await direction({ mode,
+        let { routeInfo } = await direction({ mode,
           from: departPoint,
           to: destPoint,
         });
 
-        this.setData({ isNavigationStarted: true, directDistance, ...directionRes });
+        setTimeout(() => {
+          if (routeInfo === undefined) {
+            throw new Error('加载超时');
+          }
+        }, 10000)
+
+        this.$store.commit('location/update', { mode, routeInfo });
+
+        this.setData({ isNavigationStarted: true, directDistance });
         wx.hideLoading();
       } catch (error) {
         wx.hideLoading();
@@ -377,8 +372,8 @@ export default {
     stopNavigation() {
       this.setData({ 
         isNavigationStarted: false,
-        polyline: [],
       });
+      this.$store.commit('location/clear');
     },
 
     async clearMap() {
@@ -406,11 +401,10 @@ export default {
   },
 
   created () {
-    let that = this;
     wx.getSystemInfo({
       success: (res) => {
-        that.setData({
-          pannelHeight: res.windowHeight * 0.30,
+        this.setData({
+          pannelHeight: res.windowHeight * 0.32,
         })
       }
     })
@@ -494,16 +488,31 @@ export default {
 
 .inner-scroll-view {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 15rpx;
+}
+
+.hint-outer-wrap {
+  display: flex;
   flex-direction: row;
   align-items: center;
   flex-wrap: wrap;
   justify-content: space-around;
-  height: 100%;
+  width: 100%;
+}
+
+.hint-outer-wrap.empty-info {
+  margin-top: -30rpx;
 }
 
 .hint-wrap {
   display: flex;
   flex-direction: column;
+  margin-left: 20rpx;
+  margin-right: 20rpx;
+  margin-top: 10rpx;
 }
 
 .hint-title {
@@ -523,8 +532,16 @@ export default {
 }
 
 .hint-content .unit {
-  margin-bottom: 15rpx;
+  margin-bottom: 20rpx;
   font-size: 30rpx;
+}
+
+.hint {
+  font-size: 21rpx;
+  text-align: center;
+  margin-top: 20rpx;
+  width: 100%;
+  margin-bottom: 20rpx;
 }
 
 .dept-icon {
@@ -546,7 +563,7 @@ export default {
   border-bottom: 3rpx solid #999;
   font-weight: bold;
   color: #333;
-  max-width: 80%;
+  max-width: 75%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -563,6 +580,8 @@ export default {
   flex-direction: column;
   width: 100%;
   margin-right: 15rpx;
+  justify-content: space-between;
+  height: 70%;
 }
 
 .choose-dest {
@@ -579,6 +598,9 @@ export default {
   flex-direction: row;
   justify-content: space-between;
   width: 100%;
+  height: 100%;
+  align-items: center;
+  margin-top: -20rpx;
 }
 
 .choose-dest-btn {
@@ -595,6 +617,7 @@ export default {
   align-items: center;
   padding-left: 20rpx;
   padding-right: 30rpx;
+  height: 100%;
 }
 
 .switch-btn .iconfont {
@@ -625,7 +648,7 @@ export default {
   margin-left: auto;
   margin-right: auto;
   align-items: flex-end;
-  margin-bottom: 20rpx;
+  margin-bottom: 35rpx;
 }
 
 .top-tab .top-tab-item {
@@ -657,4 +680,7 @@ export default {
   z-index: -1;
 }
 
+.pannel-main-swiper {
+  width: 100%;
+}
 </style>

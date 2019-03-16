@@ -2,6 +2,8 @@ const QQMapWX = require('../utils/qqmap-wx-jssdk.min.js').default;
 const qqmapsdk = new QQMapWX({
   key: '2GCBZ-IEWWU-7QUVD-42ZXD-D6F7V-2LFGR'
 });
+const departIconPath = '/static/images/current-location.png';
+const destIconPath = '/static/images/location.png';
 
 /**
  * 获取当前位置
@@ -78,32 +80,93 @@ const getCenterLocation = (map) => {
 }
 
 /**
+ * 解压缩路径数组
+ * @param {Number[]} coors - 经过前向差分压缩的坐标数组
+ */
+const convertCoors = (coors) => {
+  let points = []
+  for (let i = 2; i<coors.length; i++) {
+    coors[i] = Number(coors[i - 2]) + Number(coors[i]) / 1000000;
+  }
+  for (var i=0; i<coors.length; i+=2) {
+    points.push({ latitude: coors[i], longitude: coors[i + 1] })
+  }
+  return points;
+}
+
+/**
  * 路径规划
  * @param {Object} opt - 传入参数对象
- * @param {string} opt.mode - 路径规划值: 步行、骑行、坐车、公交
+ * @param {string} opt.mode - 路径规划值: 步行“walking”、骑行“bicycling”、坐车“driving”、公交“transit”
  */
 const direction = (opt) => {
   return new Promise((resolve, reject) => {
     opt = { ...opt, 
       success: res => {
-        let { routes } = res.result;
-        let routeDistance = 0, duration = 0, polyline = [];
-        for (let route of routes) {
-          let coors = route.polyline;
-          let points = [];
-          if (coors && coors.length && coors.length > 0) {
-            for (let i = 2; i<coors.length; i++) {
-              coors[i] = Number(coors[i - 2]) + Number(coors[i]) / 1000000;
-            }
-            for (var i=0; i<coors.length; i+=2) {
-              points.push({ latitude: coors[i], longitude: coors[i + 1] })
-            }
-            polyline.push({ points, color: '#FFB700', width: 7, arrowLine: true });
-            routeDistance += route.distance;
-            duration += route.duration;
+        try {
+          let { routes } = res.result;
+          let routeInfo = [];
+          switch (opt.mode) {
+            case 'walking':
+            case 'bicycling':
+            case 'driving':
+              for (let route of routes) {
+                let coors = route.polyline;
+                let points = convertCoors(coors);
+                let polyline = [{ points, color: '#FFB700', width: 7, arrowLine: true }];
+  
+                let routeDistance = route.distance;
+                let { duration, steps } = route;
+  
+                let setDurationRes = setDuration(duration);
+                let { distance, distUnit } = setDistance(routeDistance); 
+  
+                routeInfo.push({ 
+                  polyline, duration, steps, 
+                  routeDistance: distance, routeDistUnit: distUnit,
+                  ...setDurationRes,
+                });
+              }
+              break;
+            case 'transit':
+              console.log(routes);
+              for (let route of routes) {
+                let { steps, duration } = route;
+                let routeDistance = route.distance;
+                let polyline = [];
+                for (let step of steps) {
+                  let { mode } = step;
+                  if (mode === 'WALKING') {
+                    let coors = step.polyline;
+                    if (coors !== undefined && coors instanceof Array) {
+                      let points = convertCoors(coors);
+                      polyline.push({ points, color: '#1E90FF', width: 5, dottedLine: true });
+                    }
+                  } else if (mode === 'TRANSIT') {
+                    let coors = step.lines[0].polyline;
+                    if (coors !== undefined && coors instanceof Array) {
+                      let points = convertCoors(coors);
+                      polyline.push({ points, color: '#FFB700', width: 7, arrowLine: true });
+                    }
+                  }
+                }
+  
+                let setDurationRes = setDuration(duration);
+                let { distance, distUnit } = setDistance(routeDistance); 
+  
+                routeInfo.push({
+                  polyline, duration, steps,
+                  routeDistance: distance, routeDistUnit: distUnit,
+                  ...setDurationRes,
+                });
+              }
+              break;
           }
+          resolve({ routeInfo });
+        } catch (error) {
+          console.log(error);
+          reject(error);
         }
-        resolve({ polyline, routeDistance, duration });
       },
       fail: error => reject(error),
     }
@@ -112,7 +175,7 @@ const direction = (opt) => {
 }
 
 /**
- * 
+ * 传入地点坐标，返回地点信息
  * @param {Object} opt - 传入参数对象
  * @param {Object} opt.location - 地点对象
  * @param {Number} opt.location.latitude - 地点纬度
@@ -132,6 +195,67 @@ const reverseGeocoder = (opt) => {
   })
 }
 
+/**
+ * 交换起点和终点
+ * @param {Object[]} markers - 起终点构成的标志点数组，一般长度为2
+ * @param {string} departPointName - 起点的地点名称
+ * @param {string} destPointName - 终点的地点名称
+ */
+const switchLocation = (markers, departPointName, destPointName) => {
+  let departIndex = markers.findIndex(x => x.id === 0);
+  let destIndex = markers.findIndex(x => x.id === 1);
+  if (departIndex >= 0 && destIndex >= 0) {
+    markers[departIndex].id = 1;
+    markers[destIndex].id = 0;
+
+    markers[departIndex].iconPath = destIconPath;
+    markers[destIndex].iconPath = departIconPath;
+  } else if (departIndex >= 0 || destIndex >= 0) {
+    if (departIndex >= 0) {
+      markers[departIndex].iconPath = destIconPath;
+      markers[departIndex].id = 1;
+    } else if (destIndex >= 0) {
+      markers[destIndex].iconPath = departIconPath;
+      markers[destIndex].id = 0;
+    }
+  }
+  let tmp = departPointName;
+  departPointName = destPointName;
+  destPointName = tmp;
+  return { departPointName, destPointName };
+}
+
+/**
+ * 将距离由米换算成公里
+ * @param {Number} distance - 距离，单位为米
+ */
+const setDistance = (distance) => {
+  if (isNaN(distance) || distance <= 0) {
+    return { distance: 0, distUnit: '' };
+  } else if (distance > 1000) {
+    let kMeter = distance / 1000;
+    return { distance: Math.round(kMeter*10) / 10, distUnit: '公里' };
+  } else {
+    return { distance, distUnit: '米' };
+  }
+}
+
+/**
+ * 将时间由“分钟”换算为“小时-分钟”
+ * @param {Number} duration 经过的时间，单位为分钟
+ */
+const setDuration = (duration) => {
+  if (isNaN(duration) || duration <= 0) {
+    return { durationHours: 0, durationMinUnit: '', durationMin: 0 };
+  } else if (duration > 60) {
+    let durationHours = Math.ceil(duration / 60);
+    let durationMin = duration % 60;
+    return { durationHours, durationMinUnit: '分钟', durationMin };
+  } else {
+    return { durationHours: 0, durationMinUnit: '分钟', durationMin: duration };
+  }
+}
+
 export {
   getCurrentLocation,
   chooseLocation,
@@ -139,4 +263,7 @@ export {
   getCenterLocation,
   direction,
   reverseGeocoder,
+  switchLocation,
+  setDistance,
+  setDuration,
 }
