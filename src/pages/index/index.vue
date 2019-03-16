@@ -12,7 +12,7 @@
         enable-rotate
       >
         <cover-view class="re-locate-btn-wrap-outer">
-          <cover-view v-if="!isDestinationSelected" class="re-locate-btn-wrap">
+          <cover-view v-if="!isNavigationStarted" class="re-locate-btn-wrap">
             <cover-view class="re-locate-btn" @click="startNavigation">开始导航</cover-view>
           </cover-view>
           <cover-view v-else class="re-locate-btn-wrap">
@@ -31,11 +31,26 @@
         <div :class="{'top-tab-item': true, 'selected': topTab === 3}" @click="changeTopTab" data-index=3>公交</div>
       </div>
 
-      <div v-if="!isDestinationSelected" class="choose-dest-btn-wrap">
-        <button @click="chooseDeparture" class="choose-dest-btn">设置出发地</button>
-        <button @click="chooseDestination" class="choose-dest-btn">设置目的地</button>
+      <div v-if="!isNavigationStarted" class="pannel-main-wrap">
+        <!-- <button @click="chooseDeparture" class="choose-dest-btn">设置出发地</button> -->
+        <!-- <button @click="chooseDestination" class="choose-dest-btn">设置目的地</button> -->
+        <div class="middle-wrap">
+          <div class="switch-btn" @click="switchLocation">
+            <div class="iconfont icon-jiaohuan"></div>
+          </div>
+          <div class="choose-dest-wrap">
+            <div class="choose-dest" @click="chooseDeparture">
+              <image class="dept-icon" src="/static/images/current-location.png" />
+              <div class="dest-name adjust">{{ setDepartPointName }}</div>
+            </div>
+            <div class="choose-dest" @click="chooseDestination">
+              <image class="dest-icon" src="/static/images/location.png" />
+              <div class="dest-name">{{ setDestPointName }}</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div v-else class="choose-dest-btn-wrap navigating">
+      <div v-else class="pannel-main-wrap navigating">
         <div class="hint">直线距离：{{directDistance}}米</div>
         <div class="hint">路程距离：{{routeDistance}}米</div>
         <div class="hint" v-if="duration > 0">所需时间: {{duration}}分钟</div>
@@ -52,11 +67,13 @@ import {
   calculateDistance, 
   getCenterLocation,
   direction,
+  reverseGeocoder,
 } from '../../common/location';
 import { toast } from '../../common/message';
 
-const currentIconPath = '/static/images/current-location.png';
-const iconPath = '/static/images/location.png'
+const departIconPath = '/static/images/current-location.png';
+const destIconPath = '/static/images/location.png';
+const errorIconPath = '/static/images/error.png';
 
 export default {
   data () {
@@ -75,103 +92,153 @@ export default {
       duration: 0,
       pannelHeight: 0,
       topTab: 0,
-      isDestinationSelected: false,
+      isNavigationStarted: false,
+      departPointName: '',
+      destPointName: '',
+    }
+  },
+
+  computed: {
+    setDepartPointName() {
+      return this.departPointName.length === undefined ? '输入起点' 
+        : (this.departPointName.length <= 0 ? '输入起点' : this.departPointName);
+    },
+    setDestPointName() {
+      return this.destPointName.length === undefined ? '输入终点' 
+        : (this.destPointName.length <= 0 ? '输入终点' : this.destPointName);
     }
   },
 
   methods: {
     changeTopTab(e) {
-      let { topTab } = this;
+      let { topTab, isNavigationStarted } = this;
       let { index } = e.target.dataset;
       index = parseInt(index);
       if (index !== topTab) {
         topTab = index;
         this.setData({ topTab });
+        if (isNavigationStarted) {
+          this.startNavigation();
+        }
       }
+    },
+
+    switchLocation() {
+      let { markers, departPointName, destPointName } = this;
+      let departIndex = markers.findIndex(x => x.id === 0);
+      let destIndex = markers.findIndex(x => x.id === 1);
+      if (departIndex >= 0 && destIndex >= 0) {
+        markers[departIndex].id = 1;
+        markers[destIndex].id = 0;
+
+        markers[departIndex].iconPath = destIconPath;
+        markers[destIndex].iconPath = departIconPath;
+      } else if (departIndex >= 0 || destIndex >= 0) {
+        if (departIndex >= 0) {
+          markers[departIndex].iconPath = destIconPath;
+          markers[departIndex].id = 1;
+        } else if (destIndex >= 0) {
+          markers[destIndex].iconPath = departIconPath;
+          markers[departIndex].id = 0
+        }
+      }
+      let tmp = departPointName;
+      departPointName = destPointName;
+      destPointName = tmp;
+      this.setData({ departPointName, destPointName });
     },
 
     async getCurrentLocation() {
       try {
         let { markers } = this;
-        let { longitude, latitude } = await getCurrentLocation();
+        let { longitude, latitude, name } = await getCurrentLocation();
         let marker = {
-          id: 0, latitude, longitude, iconPath: currentIconPath, 
+          id: 0, latitude, longitude, iconPath: departIconPath, 
         }
         this.setMarker(marker, longitude, latitude);
+        this.setData({ 
+          departPointName: name,
+        })
       } catch (error) {
         if (error.errMsg.indexOf('getLocation:fail')) {
           this.getCurrentLocation();
         } else {
           console.log(error);
-          toast('获取当前位置出错, 请点击“设置出发地”重试');
+          toast('获取当前位置出错, 请点击“输入起点”重试');
         }
       }
     },
 
-    async chooseDeparture() {
+    async chooseLocation(type='depart') {
       try {
         wx.showActionSheet({
           itemList: ['使用当前位置', '选择其他位置'],
           success: async res => {
-            let longitude, latitude, id;
+            let longitude, latitude, id, name, iconPath;
             switch (res.tapIndex) {
               case 0:
                 let getCurrentRes = await getCurrentLocation();
                 longitude = getCurrentRes.longitude;
                 latitude = getCurrentRes.latitude;
+                name = getCurrentRes.name;
                 break;
               case 1:
                 let getChooseRes = await chooseLocation();
                 longitude = getChooseRes.longitude;
                 latitude = getChooseRes.latitude;
+                name = getChooseRes.name;
                 break;
             }
-            let marker = {
-              id: 0, latitude, longitude, iconPath: currentIconPath,
-            };
+            switch (type) {
+              case 'depart':
+                iconPath = departIconPath;
+                id = 0;
+                break;
+              case 'dest':
+                iconPath = destIconPath;
+                id = 1;
+                break;
+            }
+            let { markers } = this;
+            let index = markers.findIndex(x => {
+              return id === 0 ? (x.id === 1) : (x.id === 0);
+            });
+            if (index >= 0) {
+              if (markers[index].longitude === longitude && markers[index].latitude === latitude) {
+                toast('起点终点相同', undefined, undefined, errorIconPath);
+                return;
+              }
+            }
+            let marker = { id, latitude, longitude, iconPath, };
             this.setMarker(marker, longitude, latitude);
+            this.setData({
+              [`${type}PointName`]: name,
+            })
           }
         })
       } catch (error) {
         if (error.errMsg === undefined) {
           console.log(error);
-          toast('设置出发地点出错, 请重试');
+          toast('设置地点出错, 请重试');
         }
       }
     },
 
-    async chooseDestination() {
-      try {
-        let chooseLocationRes = await chooseLocation();
-        let { longitude, latitude } = chooseLocationRes;
-        let { markerId, markers } = this;
-        let marker = {
-          id: markerId, latitude, longitude, iconPath,
-        }
-        this.setMarker(marker, longitude, latitude);
-        this.includePoints();
-      } catch (error) {
-        if (error.errMsg === undefined) {
-          console.log(error);
-          toast('设置目的地出错，请重试');
-        }
-      }
+    chooseDestination() {
+      this.chooseLocation('dest');
+    },
+
+    chooseDeparture() {
+      this.chooseLocation('depart');
     },
 
     setMarker(marker, longitude, latitude) {
       let { markers } = this;
       let index = markers.findIndex(x => x.id === marker.id);
       if (index >= 0) {
-        markers[index] = marker
+        markers[index] = marker;
       } else {
-        switch (marker.id) {
-          case 0:
-            markers.splice(0, 0, marker);
-            break;
-          case 1:
-            markers.push(marker);
-            break;
-        }
+        markers.push(marker);
       }
       if (markers.length > 1) {
         this.includePoints();
@@ -191,7 +258,7 @@ export default {
 
     async startNavigation() {
       try {
-        let { markers } = this;
+        let { markers, topTab } = this;
         if (markers.length < 2) {
           throw new Error('请设置好出发地和目的地后再开始导航');
         }
@@ -215,12 +282,15 @@ export default {
           to: [destPoint],
         });
 
-        let directionRes = await direction({ mode: 'walking',
+        let modes = ['walking', 'bicycling', 'driving', 'transit'];
+        let mode = modes[topTab];
+
+        let directionRes = await direction({ mode,
           from: departPoint,
           to: destPoint,
         });
 
-        this.setData({ isDestinationSelected: true, directDistance, ...directionRes });
+        this.setData({ isNavigationStarted: true, directDistance, ...directionRes });
         wx.hideLoading();
       } catch (error) {
         wx.hideLoading();
@@ -231,7 +301,7 @@ export default {
 
     stopNavigation() {
       this.setData({ 
-        isDestinationSelected: false,
+        isNavigationStarted: false,
         polyline: [],
       });
     },
@@ -275,7 +345,6 @@ export default {
   async onShow() {
     try {
       if (this.markers.length >= 2) {
-        console.log('includePoints executed');
         this.includePoints();
         let map = wx.createMapContext('navi_map');
         let { longitude, latitude } = await getCenterLocation(map);
@@ -331,17 +400,71 @@ export default {
   margin-right: auto;
 }
 
-.choose-dest-btn-wrap {
+.pannel-main-wrap {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 93%;
+  margin: 0 auto;
+  align-items: center
+}
+
+.pannel-main-wrap.navigating {
+  align-items: initial;
+}
+
+.dept-icon {
+  width: 40rpx;
+  height: 60rpx;
+}
+
+.dest-icon {
+  width: 70rpx;
+  height: 69rpx;
+  margin-left: -14rpx;
+  margin-right: -14rpx;
+}
+
+.dest-name {
+  font-size: 40rpx;
+  margin-left: 10rpx;
+  padding-left: 20rpx;
+  border-bottom: 3rpx solid #999;
+  font-weight: bold;
+  color: #333;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.dest-name.adjust {
+  margin-left: 14rpx;
+  padding-left: 17rpx;
+}
+
+.choose-dest-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-right: 15rpx;
+}
+
+.choose-dest {
   display: flex;
   flex-direction: row;
   align-items: center;
-  height: 100%;
-  width: 90%;
-  margin: 0 auto;
+  margin-bottom: 10rpx;
+  padding-top: 10rpx;
+  padding-bottom: 10rpx;
 }
 
-.choose-dest-btn-wrap.navigating {
-  align-items: initial;
+.middle-wrap {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .choose-dest-btn {
@@ -352,18 +475,16 @@ export default {
   font-weight: bolder;
 }
 
-.btn-group-wrap {
+.switch-btn {
   display: flex;
   flex-direction: row;
-  width: 100%;
-  justify-content: space-around;
-  margin-top: 30rpx;
-  margin-bottom: 30rpx;
+  align-items: center;
+  padding-left: 20rpx;
+  padding-right: 30rpx;
 }
 
-.btn-wrap {
-  height: 100%;
-  vertical-align: middle;
+.switch-btn .iconfont {
+  font-size: 42rpx;
 }
 
 .hint {

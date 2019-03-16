@@ -10,9 +10,14 @@ const qqmapsdk = new QQMapWX({
 const getCurrentLocation = (type = 'gcj02') => {
   return new Promise((resolve, reject) => {
     wx.getLocation({
-      type, success: (res) => {
-        let { longitude, latitude } = res;
-        resolve({ longitude, latitude });
+      type, success: async (res) => {
+        try {
+          let { longitude, latitude } = res;
+          let { name } = await reverseGeocoder({ location: { longitude, latitude } });
+          resolve({ longitude, latitude, name });
+        } catch (error) {
+          reject(error);
+        }
       },
       fail: (error) => reject(error),
     })
@@ -26,13 +31,11 @@ const chooseLocation = () => {
   return new Promise((resolve, reject) => {
     wx.chooseLocation({
       success: (res) => {
-        let { longitude, latitude } = res;
-        resolve({ longitude, latitude });
+        let { longitude, latitude, name } = res;
+        resolve({ longitude, latitude, name });
       },
       fail: (error) => {
-        // if (!error.errMsg.indexOf('fail cancel')) {
         reject(error)
-        // }
       },
     })
   })
@@ -49,13 +52,13 @@ const chooseLocation = () => {
 const calculateDistance = (opt) => {
   return new Promise((resolve, reject) => {
     opt = { ...opt, 
-      success: (res) => {
+      success: res => {
         let { result } = res;
         let { distance } = result.elements[0];
         let directDistance = distance
         resolve({ directDistance });
       },
-      fail: (error) => reject(error),
+      fail: error => reject(error),
     }
     qqmapsdk.calculateDistance(opt);
   })
@@ -82,27 +85,50 @@ const getCenterLocation = (map) => {
 const direction = (opt) => {
   return new Promise((resolve, reject) => {
     opt = { ...opt, 
-      success: (res) => {
+      success: res => {
         let { routes } = res.result;
         let routeDistance = 0, duration = 0, polyline = [];
         for (let route of routes) {
           let coors = route.polyline;
           let points = [];
-          for (let i = 2; i<coors.length; i++) {
-            coors[i] = Number(coors[i - 2]) + Number(coors[i]) / 1000000;
+          if (coors && coors.length && coors.length > 0) {
+            for (let i = 2; i<coors.length; i++) {
+              coors[i] = Number(coors[i - 2]) + Number(coors[i]) / 1000000;
+            }
+            for (var i=0; i<coors.length; i+=2) {
+              points.push({ latitude: coors[i], longitude: coors[i + 1] })
+            }
+            polyline.push({ points, color: '#FFB700', width: 7, arrowLine: true });
+            routeDistance += route.distance;
+            duration += route.duration;
           }
-          for (var i=0; i<coors.length; i+=2) {
-            points.push({ latitude: coors[i], longitude: coors[i + 1] })
-          }
-          polyline.push({ points, color: '#FFB700', width: 5 });
-          routeDistance += route.distance;
-          duration += route.duration;
         }
         resolve({ polyline, routeDistance, duration });
       },
-      fail: (error) => reject(error),
+      fail: error => reject(error),
     }
     qqmapsdk.direction(opt);
+  })
+}
+
+/**
+ * 
+ * @param {Object} opt - 传入参数对象
+ * @param {Object} opt.location - 地点对象
+ * @param {Number} opt.location.latitude - 地点纬度
+ * @param {Number} opt.location.longitude - 地点经度
+ */
+const reverseGeocoder = (opt) => {
+  return new Promise((resolve, reject) => {
+    opt = {...opt, 
+      success: res => {
+        let { formatted_addresses: { recommend }, address } = res.result;
+        let name = recommend.length <= address.length ? recommend : address;
+        resolve({ name });
+      },
+      fail: error => reject(error),
+    }
+    qqmapsdk.reverseGeocoder(opt);
   })
 }
 
@@ -112,4 +138,5 @@ export {
   calculateDistance,
   getCenterLocation,
   direction,
+  reverseGeocoder,
 }
