@@ -6,6 +6,7 @@ export default {
 
 <style>
 @import '../static/styles/iconfont.wxss';
+@import '../static/styles/font.wxss';
 
 .container {
   height: 100%;

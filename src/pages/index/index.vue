@@ -32,8 +32,6 @@
       </div>
 
       <div v-if="!isNavigationStarted" class="pannel-main-wrap">
-        <!-- <button @click="chooseDeparture" class="choose-dest-btn">设置出发地</button> -->
-        <!-- <button @click="chooseDestination" class="choose-dest-btn">设置目的地</button> -->
         <div class="middle-wrap">
           <div class="switch-btn" @click="switchLocation">
             <div class="iconfont icon-jiaohuan"></div>
@@ -51,9 +49,34 @@
         </div>
       </div>
       <div v-else class="pannel-main-wrap navigating">
-        <div class="hint">直线距离：{{directDistance}}米</div>
-        <div class="hint">路程距离：{{routeDistance}}米</div>
-        <div class="hint" v-if="duration > 0">所需时间: {{duration}}分钟</div>
+        <scroll-view class="scroll-view" scroll-y='true' style="height: 100%;">
+          <div class="inner-scroll-view">
+            <div class="hint-wrap">
+              <div class="hint-title">直线距离</div>
+              <div class="hint-content">
+                <div class="number">{{setDirectDistance}}</div>
+                <div class="unit">{{directDistUnit}}</div>
+              </div>
+            </div>
+            <div class="hint-wrap">
+              <div class="hint-title">路程距离</div>
+              <div class="hint-content">
+                <div class="number">{{setRouteDistance}}</div>
+                <div class="unit">{{routeDistUnit}}</div>
+              </div>
+            </div>
+            <div class="hint-wrap" v-if="duration > 0">
+              <div class="hint-title">所需时间</div>
+              <div class="hint-content">
+                <div class="number" v-if="durationHours > 0">{{durationHours}}</div>
+                <div class="unit" v-if="durationHours > 0">小时</div>
+                <div class="number">{{setDurationMin}}</div>
+                <div class="unit">{{durationMinUnit}}</div>
+              </div>
+            </div>
+
+          </div>
+        </scroll-view>
       </div>
     </div>
 
@@ -90,11 +113,15 @@ export default {
       directDistance: 0,
       routeDistance: 0,
       duration: 0,
+      durationHours: 0,
       pannelHeight: 0,
       topTab: 0,
       isNavigationStarted: false,
       departPointName: '',
       destPointName: '',
+      directDistUnit: '米',
+      routeDistUnit: '米',
+      durationMinUnit: '分钟',
     }
   },
 
@@ -106,6 +133,49 @@ export default {
     setDestPointName() {
       return this.destPointName.length === undefined ? '输入终点' 
         : (this.destPointName.length <= 0 ? '输入终点' : this.destPointName);
+    },
+    setDirectDistance() {
+      let { directDistance } = this;
+      if (isNaN(directDistance) || directDistance <= 0) {
+        this.setData({ directDistUnit: '' });
+        return 0;
+      } else if (directDistance > 1000) {
+        this.setData({ directDistUnit: '公里' });
+        let kMeter = directDistance / 1000;
+        return Math.round(kMeter*10) / 10;
+      } else {
+        this.setData({ directDistUnit: '米' });
+        return directDistance;
+      }
+    },
+    setRouteDistance() {
+      let { routeDistance } = this;
+      if (isNaN(routeDistance) || routeDistance <= 0) {
+        this.setData({ routeDistUnit: '' });
+        return 0;
+      } else if (routeDistance > 1000) {
+        this.setData({ routeDistUnit: '公里' });
+        let kMeter = routeDistance / 1000;
+        return Math.round(kMeter*10) / 10;
+      } else {
+        this.setData({ routeDistUnit: '米' });
+        return routeDistance;
+      }
+    },
+    setDurationMin() {
+      let { duration } = this;
+      if (isNaN(duration) || duration <= 0) {
+        this.setData({ durationMinUnit: '' });
+        return 0;
+      } else if (duration > 60) {
+        let durationHours = Math.ceil(duration / 60);
+        let durationMin = duration % 60;
+        this.setData({ durationHours, durationMinUnit: '分钟' });
+        return durationMin;
+      } else {
+        this.setData({ durationHours: 0, durationMinUnit: '分钟' });
+        return duration;
+      }
     }
   },
 
@@ -295,7 +365,12 @@ export default {
       } catch (error) {
         wx.hideLoading();
         console.log(error);
-        toast(error.message);
+        if (error.message.indexOf('起终点距离超长') >= 0) {
+          this.setData({ polyline: [] });
+          toast(`${error.message}，请更换出行方式`);
+        } else {
+          toast(error.message);
+        }
       }
     },
 
@@ -410,7 +485,46 @@ export default {
 }
 
 .pannel-main-wrap.navigating {
-  align-items: initial;
+  justify-content: space-around;
+}
+
+.scroll-vew {
+  width: 100%;
+}
+
+.inner-scroll-view {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  height: 100%;
+}
+
+.hint-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.hint-title {
+  font-size: 32rpx;
+  text-align: center;
+}
+
+.hint-content {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+.hint-content .number {
+  font-family: 'Oswald';
+  font-size: 90rpx;
+}
+
+.hint-content .unit {
+  margin-bottom: 15rpx;
+  font-size: 30rpx;
 }
 
 .dept-icon {
@@ -485,14 +599,6 @@ export default {
 
 .switch-btn .iconfont {
   font-size: 42rpx;
-}
-
-.hint {
-  margin-top: 40rpx;
-  margin-left: auto;
-  margin-right: auto;
-  width: 90%;
-  font-size: 32rpx;
 }
 
 .pannel-wrap {
