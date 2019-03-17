@@ -255,6 +255,25 @@ const setDuration = (duration) => {
   }
 }
 
+/**
+ * 将英文的出行类型转换为中文
+ * @param {string} type - 英文的出行类型
+ */
+const typeTrans = (type) => {
+  switch (type) {
+    case 'WALKING':
+      return '步行';
+    case 'SUBWAY':
+      return '地铁';
+    case 'BUS':
+      return '公交车';
+    case 'RAIL':
+      return '火车';
+    default:
+      return '';
+  }
+}
+
 export {
   getCurrentLocation,
   chooseLocation,
@@ -265,4 +284,5 @@ export {
   switchLocation,
   setDistance,
   setDuration,
+  typeTrans,
 }

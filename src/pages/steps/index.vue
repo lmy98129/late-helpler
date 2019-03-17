@@ -1,7 +1,23 @@
 <template>
-  <div class="steps-wrap">
-    <div class="steps-item" v-for="(item, index) in steps" :key="index">
-      {{ item.instruction }}
+  <div class="main-wrap">
+    <div class="steps-wrap" v-if="mode !== 'transit'">
+      <div class="steps-item" v-for="(item, index) in steps" :key="index">
+        {{ item.instruction }}
+      </div>
+    </div>
+    <div v-else>
+      <div v-for="(item, index) in steps" :key="index">
+        <div v-if="item.steps !== undefined">
+          <div v-for="(subItem, subIndex) in item.steps" :key="subIndex" class="steps-item">
+            {{ subItem.instruction }}
+          </div>
+        </div>
+        <div v-if="item.lines !== undefined">
+          <div v-for="(line, subIndex) in item.lines" :key="subIndex" class="steps-item">
+            {{ line.vehicle }} {{line.title}} {{ (line.geton !== undefined && line.geton.title !== undefined) ? line.geton.title : '' }} {{ (line.geton !== undefined || line.getoff !== undefined ) ? '-' : '' }} {{ (line.getoff !== undefined && line.getoff.title !== undefined) ? line.getoff.title : '' }} {{ subIndex === 0 ? '' : '起终点同上' }}
+          </div>
+        </div>
+      </div>
     </div>
     <div class="hint">
       <text>
@@ -13,7 +29,8 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
+import { mapState } from 'vuex';
+import { typeTrans } from '../../common/location';
 
 export default {
   data() {
@@ -25,12 +42,28 @@ export default {
   computed: {
     ...mapState('location', {
       steps(state) {
-        let { mode, index } = this;
-        if (mode.length && mode.length > 0) {
-          return this.$store.state.location[`${mode}RouteInfo`][index].steps;
+        try {
+          let { mode, index } = this;
+          if (mode.length && mode.length > 0) {
+            let steps = this.$store.state.location[`${mode}RouteInfo`][index].steps;
+            if (mode === 'transit') {
+              for (let index = 0; index < steps.length; index++) {
+                if (steps[index].lines) {
+                  for (let subIndex = 0; subIndex < steps[index].lines.length; subIndex++) {
+                    let vehicle = steps[index].lines[subIndex].vehicle;
+                    steps[index].lines[subIndex].vehicle = typeTrans(vehicle);
+                  }
+                }
+              }
+            }
+            return steps;
+          } else return [];
+        } catch (error) {
+          console.log(error);
+          return [];
         }
       }
-    })
+    }),
   },
   onLoad(opt) {
     let { mode, index } = opt;

@@ -20,7 +20,7 @@
               <cover-image class="back-icon" src="/static/images/back.png"></cover-image>
             </cover-view>
             <cover-view class="cover-btn short-btn timer-btn" @click="showTimerSetModal">迟到计时</cover-view>
-            <cover-view class="cover-btn short-btn" @click="routeStep">路线导航</cover-view>
+            <cover-view class="cover-btn short-btn" @click="routeStep">分段导航</cover-view>
             <cover-view class="cover-btn circle-btn" @click="reLocate">
               <cover-image  class="re-locate-icon" src="/static/images/re-locate.png"></cover-image>
             </cover-view>
@@ -323,7 +323,7 @@ export default {
       if (currentRouteInfo[current] && currentRouteInfo[current].polyline) {
         this.setData({ polyline: currentRouteInfo[current].polyline });
       }
-      this.setData({ currentIndex: current });
+      this.setData({ currentIndex: current, routerCurrent: current });
     },
 
     switchLocation() {
@@ -422,10 +422,13 @@ export default {
     },
 
     async reLocate() {
+      let { isTimerStarted } = this;
       await this.chooseLocation('depart', 0);
       await this.startNavigation();
-      await this.setTimer();
-      await this.resetTimerCurrent();
+      if (isTimerStarted) {
+        await this.setTimer();
+        await this.resetTimerCurrent();
+      }
     },
 
     setMarker(marker, longitude, latitude) {
