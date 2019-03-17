@@ -23,4 +23,12 @@ export default {
   height: 0;
   color: transparent;
 }
+
+.hint {
+  font-size: 21rpx;
+  text-align: center;
+  margin-top: 20rpx;
+  width: 100%;
+  margin-bottom: 20rpx;
+}
 </style>

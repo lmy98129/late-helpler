@@ -816,14 +816,6 @@ export default {
   font-size: 30rpx;
 }
 
-.hint {
-  font-size: 21rpx;
-  text-align: center;
-  margin-top: 20rpx;
-  width: 100%;
-  margin-bottom: 20rpx;
-}
-
 .dept-icon {
   width: 40rpx;
   height: 60rpx;
