@@ -145,8 +145,12 @@
                 <div class="hint-wrap" v-if="currentRouteInfo[currentIndex].duration > 0">
                   <div class="hint-title">所需时间</div>
                   <div class="hint-content">
-                    <div class="number" v-if="currentRouteInfo[currentIndex].durationHours > 0">{{route.durationHours}}</div>
-                    <div class="unit" v-if="currentRouteInfo[currentIndex].durationHours > 0">小时</div>
+                    <div class="number" v-if="currentRouteInfo[currentIndex].durationHours > 0">
+                      {{currentRouteInfo[currentIndex].durationHours}}
+                    </div>
+                    <div class="unit" v-if="currentRouteInfo[currentIndex].durationHours > 0">
+                      小时
+                    </div>
                     <div class="number">{{currentRouteInfo[currentIndex].durationMin}}</div>
                     <div class="unit">{{currentRouteInfo[currentIndex].durationMinUnit}}</div>
                   </div>
@@ -160,7 +164,7 @@
                 <div class="hint">
                   <text>
                     以上结果仅供参考，判定迟到的标准：\n
-                    当前位置到目标地点所需时间 >= 预计到达时间 - 当前时间
+                    当前位置到目标地点所需时间 >= 剩余时间
                   </text>
                 </div>
               </div>
@@ -553,21 +557,30 @@ export default {
     },
 
     setTimer() {
-      let { currentTimeArrival, currentDateArrival } = this;
-      if (currentTimeArrival === undefined || 
-        currentTimeArrival.length <= 0 || 
-        currentDateArrival === undefined || 
-        currentDateArrival === undefined) {
-        confirmOnly(`请您填写完整的日期和时间。
-          如果您是今天内到达，请填写今天的日期，感谢您的配合`);
-        return;
+      try {
+        let { currentTimeArrival, currentDateArrival } = this;
+        if (currentTimeArrival === undefined || 
+          currentTimeArrival.length <= 0 || 
+          currentDateArrival === undefined || 
+          currentDateArrival === undefined) {
+          confirmOnly(`请您填写完整的日期和时间。
+            如果您是今天内到达，请填写今天的日期，感谢您的配合`);
+          return;
+        }
+        this.setData({
+          isTimerStarted: true,
+          isTimerSetModalHidden: true,
+        });
+        this.resetTimerCurrent();
+        this.countDown();
+      } catch (error) {
+        console.log(error);
+        toast('计时器出错，请重试');
+        this.setData({ 
+          isTimerStarted: false,
+          isTimerSetModalHidden: true,
+        })
       }
-      this.setData({
-        isTimerStarted: true,
-        isTimerSetModalHidden: true,
-      });
-      this.resetTimerCurrent();
-      this.countDown();
     },
 
     resetTimerCurrent() {
