@@ -59,7 +59,7 @@
           class="pannel-main-swiper"
           :style="{ height: pannelHeight-60 + 'px' }" 
           :indicator-dots="currentRouteInfo.length > 2"
-          @change="swiperChange"
+          @change="routerSwiperChange"
           :current="routerCurrent"
           >
           <swiper-item v-for="(route, index) in currentRouteInfo" :key="index">
@@ -111,6 +111,7 @@
           :style="{ height: pannelHeight + 'px' }" 
           :indicator-dots="!isLate"
           :current="timerCurrent"
+          @change="timerSwiperChange"
           >
           <swiper-item v-if="!isLate">
             <scroll-view class="scroll-view" scroll-y='true' style="height: 94%;">
@@ -315,7 +316,7 @@ export default {
       }
     },
 
-    swiperChange(e) {
+    routerSwiperChange(e) {
       let { current } = e.target;
       let { topTab } = this;
       let mode = modes[topTab];
@@ -324,6 +325,11 @@ export default {
         this.setData({ polyline: currentRouteInfo[current].polyline });
       }
       this.setData({ currentIndex: current, routerCurrent: current });
+    },
+
+    timerSwiperChange(e) {
+      let { current } = e.target;
+      this.setData({ timerCurrent: current });
     },
 
     switchLocation() {
@@ -600,6 +606,7 @@ export default {
     },
 
     setDateArrival(e) {
+      console.log(e);
       let { value } = e.target;
       this.setData({
         currentDateArrival: value,
@@ -704,48 +711,52 @@ export default {
   background: rgb(24, 25, 32);
   color: #fff;
   text-align: center;
-  padding-top: 20rpx;
-  padding-bottom: 20rpx;
   border-radius: 50rpx;
   display: inline-block;
   font-size: 40rpx;
   font-weight: bold;
   margin-left: auto;
   margin-right: auto;
-  height: 45rpx;
+  height: 80rpx;
+  line-height: 80rpx;
 }
 
 .cover-btn.short-btn {
   width: 220rpx;
+  border: 4rpx solid #222;
+  line-height: 80rpx;
+  height: 80rpx;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .cover-btn.short-btn.timer-btn {
   background: #FBCC00;
   color: #222;
-  border: 4rpx solid #222;
-  padding-bottom: 17rpx;
 }
 
 .cover-btn.circle-btn {
   background: #fff;
-  width: 90rpx;
-  height: 50rpx;
+  width: 80rpx;
+  height: 80rpx;
   color: #222;
   border: solid .5rpx #aaa;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .back-icon {
   height: 50rpx;
   width: 50rpx;
   margin: 0 auto;
-  margin-top: -3rpx;
+  margin-top: 10rpx;
 }
 
 .re-locate-icon {
   height: 57rpx;
   width: 57rpx;
   margin: 0 auto;
-  margin-top: -2rpx;
+  margin-top: 12rpx;
 }
 
 .pannel-main-wrap {

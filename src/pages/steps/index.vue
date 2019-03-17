@@ -44,7 +44,8 @@ export default {
       steps(state) {
         try {
           let { mode, index } = this;
-          if (mode.length && mode.length > 0) {
+          if (mode.length && mode.length > 0 && 
+            this.$store.state.location[`${mode}RouteInfo`][index].steps !== undefined) {
             let steps = this.$store.state.location[`${mode}RouteInfo`][index].steps;
             if (mode === 'transit') {
               for (let index = 0; index < steps.length; index++) {
