@@ -1,6 +1,6 @@
 <template>
   <div >
-    <div class="map-box" :style="{bottom: pannelHeight + 'px'}">
+    <div class="map-box" :style="{bottom: pannelHeight + 'px'}" v-show="isTimerSetModalHidden">
       <map
         id="navi_map"
         :longitude="longitude"
@@ -11,20 +11,26 @@
         enable-overlooking
         enable-rotate
       >
-        <cover-view class="re-locate-btn-wrap-outer">
-          <cover-view v-if="!isNavigationStarted" class="re-locate-btn-wrap">
-            <cover-view class="re-locate-btn" @click="startNavigation">开始导航</cover-view>
+        <cover-view class="cover-btn-wrap-outer">
+          <cover-view v-if="!isNavigationStarted" class="cover-btn-wrap">
+            <cover-view class="cover-btn" @click="startNavigation">计时 | 导航</cover-view>
           </cover-view>
-          <cover-view v-else class="re-locate-btn-wrap">
-            <cover-view class="re-locate-btn" @click="stopNavigation">重新设定</cover-view>
-            <cover-view class="re-locate-btn" @click="refresh">更新定位</cover-view>
+          <cover-view v-else class="cover-btn-wrap">
+            <cover-view class="cover-btn circle-btn" @click="prevFunction">
+              <cover-image class="back-icon" src="/static/images/back.png"></cover-image>
+            </cover-view>
+            <cover-view class="cover-btn short-btn timer-btn" @click="showTimerSetModal">迟到计时</cover-view>
+            <cover-view class="cover-btn short-btn" @click="routeStep">路线导航</cover-view>
+            <cover-view class="cover-btn circle-btn" @click="reLocate">
+              <cover-image  class="re-locate-icon" src="/static/images/re-locate.png"></cover-image>
+            </cover-view>
           </cover-view>
         </cover-view>
       </map>
     </div>
 
     <div class="pannel-wrap" :style="{height: pannelHeight + 'px'}">
-      <div class="top-tab">
+      <div class="top-tab" v-if="!isTimerStarted">
         <div :class="{'top-tab-item': true, 'selected': topTab === 0}" @click="changeTopTab" data-index=0>步行</div>
         <div :class="{'top-tab-item': true, 'selected': topTab === 1}" @click="changeTopTab" data-index=1>骑行</div>
         <div :class="{'top-tab-item': true, 'selected': topTab === 2}" @click="changeTopTab" data-index=2>驾车</div>
@@ -48,14 +54,13 @@
           </div>
         </div>
       </div>
-      <div v-else class="pannel-main-wrap navigating">
-        <swiper 
+      <div v-else-if="isNavigationStarted && !isTimerStarted" class="pannel-main-wrap navigating">
+        <swiper v-if="currentRouteInfo !== undefined && currentRouteInfo.length > 0"
           class="pannel-main-swiper"
           :style="{ height: pannelHeight-60 + 'px' }" 
           :indicator-dots="currentRouteInfo.length > 2"
           @change="swiperChange"
-          :current="current"
-          v-if="currentRouteInfo !== undefined && currentRouteInfo.length > 0"
+          :current="routerCurrent"
           >
           <swiper-item v-for="(route, index) in currentRouteInfo" :key="index">
             <scroll-view class="scroll-view" scroll-y='true' style="height: 94%;">
@@ -90,7 +95,7 @@
             </scroll-view>
           </swiper-item>
         </swiper>
-        <div class="hint-outer-wrap empty-info" v-else>
+        <div v-else class="hint-outer-wrap empty-info">
           <div class="hint-wrap">
             <div class="hint-title">直线距离</div>
             <div class="hint-content">
@@ -100,8 +105,102 @@
           </div>
         </div>
       </div>
+      <div v-else-if="isTimerStarted" class="pannel-main-wrap navigating">
+        <swiper
+          class="pannel-main-swiper"
+          :style="{ height: pannelHeight + 'px' }" 
+          :indicator-dots="!isLate"
+          :current="timerCurrent"
+          >
+          <swiper-item v-if="!isLate">
+            <scroll-view class="scroll-view" scroll-y='true' style="height: 94%;">
+              <div class="middle-wrap timer" v-if="!isLate">
+                <div class="hint-wrap">
+                  <div class="hint-title">剩余时间</div>
+                  <div class="hint-content">
+                    <div class="time-wrap" v-if="counter.day > 0" >
+                      <div class="number">{{counter.day}}</div>
+                      <div class="unit">天</div>
+                    </div>
+                    <div class="time-wrap" v-if="counter.hr > 0" >
+                      <div class="number">{{counter.hr}}</div>
+                      <div class="unit">小时</div>
+                    </div>
+                    <div class="time-wrap">
+                      <div class="number">{{counter.min}}</div>
+                      <div class="unit">分钟</div>
+                    </div>
+                    <div class="time-wrap">
+                      <div class="number">{{counter.sec}}</div>
+                      <div class="unit">秒</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </scroll-view>
+          </swiper-item>
+          <swiper-item>
+            <scroll-view class="scroll-view" scroll-y='true' style="height: 94%;">
+              <div class="middle-wrap timer">
+                <div class="hint-wrap" v-if="currentRouteInfo[currentIndex].duration > 0">
+                  <div class="hint-title">所需时间</div>
+                  <div class="hint-content">
+                    <div class="number" v-if="currentRouteInfo[currentIndex].durationHours > 0">{{route.durationHours}}</div>
+                    <div class="unit" v-if="currentRouteInfo[currentIndex].durationHours > 0">小时</div>
+                    <div class="number">{{currentRouteInfo[currentIndex].durationMin}}</div>
+                    <div class="unit">{{currentRouteInfo[currentIndex].durationMinUnit}}</div>
+                  </div>
+                </div>
+                <div class="hint-wrap">
+                  <div class="hint-title">迟到状态</div>
+                  <div class="hint-content pure-text">
+                    {{isLate ? '已迟到' : '未迟到'}}
+                  </div>
+                </div>
+                <div class="hint">
+                  <text>
+                    以上结果仅供参考，判定迟到的标准：\n
+                    当前位置到目标地点所需时间 >= 预计到达时间 - 当前时间
+                  </text>
+                </div>
+              </div>
+            </scroll-view>
+          </swiper-item>
+        </swiper>
+      </div>
     </div>
 
+    <custom-modal 
+      :hidden="isTimerSetModalHidden" 
+      @cancel="hideTimerSetModal"
+      @confirm="setTimer"
+      title='设置到达时间'
+      >
+      <div class="choose-dest-wrap inside-modal">
+        <div class="choose-dest inside-modal">
+          <image class="dest-icon" src="/static/images/date.png" />
+          <picker 
+            class="dest-name" 
+            mode="date" 
+            @change="setDateArrival"
+            :start="nowDate"
+            >
+            {{ dateArrival }}
+          </picker>
+        </div>
+        <div class="choose-dest inside-modal">
+          <image class="dest-icon" src="/static/images/timer.png" />
+          <picker 
+            class="dest-name" 
+            mode="time" 
+            @change="setTimeArrival"
+            :value="nowTime"
+            >
+            {{ timeArrival }}
+          </picker>
+        </div>
+      </div>
+    </custom-modal>
   </div>
 </template>
 
@@ -117,8 +216,10 @@ import {
   setDistance,
   setDuration,
 } from '../../common/location';
-import { toast } from '../../common/message';
+import { toast, confirmOnly } from '../../common/message';
 import { mapState } from 'vuex';
+import customModal from '../../components/custom-modal';
+import { diffTime, formatTime } from '../../utils/util';
 
 const departIconPath = '/static/images/current-location.png';
 const destIconPath = '/static/images/location.png';
@@ -137,12 +238,24 @@ export default {
       pannelHeight: 0,
       topTab: 0,
       isNavigationStarted: false,
+      isTimerStarted: false,
+      isTimerSetModalHidden: true,
       departPointName: '',
       destPointName: '',
       directDistUnit: '',
-      current: 0,
+      routerCurrent: 0,
+      timerCurrent: 0,
+      currentIndex: 0,
+      currentTimeArrival: '',
+      currentDateArrival: '',
+      counter: {},
+      nowDate: '',
+      nowTime: '',
+      isLate: false,
     }
   },
+
+  components: { 'custom-modal': customModal },
 
   computed: {
     setDepartPointName() {
@@ -152,6 +265,14 @@ export default {
     setDestPointName() {
       return this.destPointName.length === undefined ? '输入终点' 
         : (this.destPointName.length <= 0 ? '输入终点' : this.destPointName);
+    },
+    timeArrival() {
+      return this.currentTimeArrival === undefined ? '输入预计到达时间'
+        : (this.currentTimeArrival.length <= 0 ? '输入预计到达时间' : this.currentTimeArrival);
+    },
+    dateArrival() {
+      return this.currentDateArrival = undefined ? '输入预计到达日期'
+        : (this.currentDateArrival.length <= 0 ? '输入预计到达日期' : this.currentDateArrival)
     },
     setDirectDistance() {
       let { directDistance } = this;
@@ -184,8 +305,8 @@ export default {
         this.setData({ topTab });
         if (isNavigationStarted) {
           this.startNavigation();
-          this.setData({ current: -1 });
-          this.setData({ current: 0 });
+          this.setData({ routerCurrent: -1 });
+          this.setData({ routerCurrent: 0, currentIndex: 0 });
         }
       }
     },
@@ -198,6 +319,7 @@ export default {
       if (currentRouteInfo[current] && currentRouteInfo[current].polyline) {
         this.setData({ polyline: currentRouteInfo[current].polyline });
       }
+      this.setData({ currentIndex: current });
     },
 
     switchLocation() {
@@ -208,18 +330,10 @@ export default {
 
     async getCurrentLocation() {
       try {
-        let { markers } = this;
-        let { longitude, latitude, name } = await getCurrentLocation();
-        let marker = {
-          id: 0, latitude, longitude, iconPath: departIconPath, 
-        }
-        this.setMarker(marker, longitude, latitude);
-        this.setData({ 
-          departPointName: name,
-        })
+        this.chooseLocation('depart', 0);
       } catch (error) {
         if (error.errMsg.indexOf('getLocation:fail')) {
-          this.getCurrentLocation();
+          this.chooseLocation('depart', 0);
         } else {
           console.log(error);
           toast('获取当前位置出错, 请点击“输入起点”重试');
@@ -227,53 +341,66 @@ export default {
       }
     },
 
-    async chooseLocation(type='depart') {
+    async chooseLocationActionSheet(type='depart') {
+      let hintStr;
+      switch (type) {
+        case 'depart':
+          hintStr = '作为起点';
+          break;
+        case 'dest':
+          hintStr = '作为终点';
+          break;
+      }
+      wx.showActionSheet({
+        itemList: [`使用当前位置${hintStr}`, `选择其他位置${hintStr}`],
+        success: async res => {
+          this.chooseLocation(type, res.tapIndex);
+        }
+      })
+    },
+
+    async chooseLocation(type='depart', chooseMode=0) {
       try {
-        wx.showActionSheet({
-          itemList: ['使用当前位置', '选择其他位置'],
-          success: async res => {
-            let longitude, latitude, id, name, iconPath;
-            switch (res.tapIndex) {
-              case 0:
-                let getCurrentRes = await getCurrentLocation();
-                longitude = getCurrentRes.longitude;
-                latitude = getCurrentRes.latitude;
-                name = getCurrentRes.name;
-                break;
-              case 1:
-                let getChooseRes = await chooseLocation();
-                longitude = getChooseRes.longitude;
-                latitude = getChooseRes.latitude;
-                name = getChooseRes.name;
-                break;
-            }
-            switch (type) {
-              case 'depart':
-                iconPath = departIconPath;
-                id = 0;
-                break;
-              case 'dest':
-                iconPath = destIconPath;
-                id = 1;
-                break;
-            }
-            let { markers } = this;
-            let index = markers.findIndex(x => {
-              return id === 0 ? (x.id === 1) : (x.id === 0);
-            });
-            if (index >= 0) {
-              if (markers[index].longitude === longitude && markers[index].latitude === latitude) {
-                toast('起点终点相同', undefined, undefined, errorIconPath);
-                return;
-              }
-            }
-            let marker = { id, latitude, longitude, iconPath, };
-            this.setMarker(marker, longitude, latitude);
-            this.setData({
-              [`${type}PointName`]: name,
-            })
+        let longitude, latitude, id, name, iconPath;
+        switch (chooseMode) {
+          case 0:
+            let getCurrentRes = await getCurrentLocation();
+            longitude = getCurrentRes.longitude;
+            latitude = getCurrentRes.latitude;
+            name = getCurrentRes.name;
+            break;
+          case 1:
+            let getChooseRes = await chooseLocation();
+            longitude = getChooseRes.longitude;
+            latitude = getChooseRes.latitude;
+            name = getChooseRes.name;
+            break;
+        }
+        switch (type) {
+          case 'depart':
+            iconPath = departIconPath;
+            id = 0;
+            break;
+          case 'dest':
+            iconPath = destIconPath;
+            id = 1;
+            break;
+        }
+        let { markers } = this;
+        let index = markers.findIndex(x => {
+          return id === 0 ? (x.id === 1) : (x.id === 0);
+        });
+        if (index >= 0) {
+          if (markers[index].longitude === longitude && markers[index].latitude === latitude) {
+            toast('起点终点相同', undefined, undefined, errorIconPath);
+            return;
           }
-        })
+        }
+        let marker = { id, latitude, longitude, iconPath, };
+        this.setMarker(marker, longitude, latitude);
+        this.setData({
+          [`${type}PointName`]: name,
+        });
       } catch (error) {
         if (error.errMsg === undefined) {
           console.log(error);
@@ -283,11 +410,18 @@ export default {
     },
 
     chooseDestination() {
-      this.chooseLocation('dest');
+      this.chooseLocationActionSheet('dest');
     },
 
     chooseDeparture() {
-      this.chooseLocation('depart');
+      this.chooseLocationActionSheet('depart');
+    },
+
+    async reLocate() {
+      await this.chooseLocation('depart', 0);
+      await this.startNavigation();
+      await this.setTimer();
+      await this.resetTimerCurrent();
     },
 
     setMarker(marker, longitude, latitude) {
@@ -369,11 +503,19 @@ export default {
       }
     },
 
-    stopNavigation() {
-      this.setData({ 
-        isNavigationStarted: false,
-      });
-      this.$store.commit('location/clear');
+    prevFunction() {
+      let { isTimerStarted, isNavigationStarted } = this;
+      if (isTimerStarted) {
+        this.setData({
+          isTimerStarted: false,
+          counter: {}
+        });
+      } else if (isNavigationStarted) {
+        this.setData({ 
+          isNavigationStarted: false,
+        });
+        this.$store.commit('location/clear');
+      }
     },
 
     async clearMap() {
@@ -398,6 +540,85 @@ export default {
         toast('重置地图出错');
       }
     },
+
+    showTimerSetModal() {
+      let now = new Date();
+      this.setData({ isTimerSetModalHidden: false, ...formatTime(now) });
+    },
+
+    hideTimerSetModal() {
+      this.setData({ 
+        isTimerSetModalHidden: true,
+      });
+    },
+
+    setTimer() {
+      let { currentTimeArrival, currentDateArrival } = this;
+      if (currentTimeArrival === undefined || 
+        currentTimeArrival.length <= 0 || 
+        currentDateArrival === undefined || 
+        currentDateArrival === undefined) {
+        confirmOnly(`请您填写完整的日期和时间。
+          如果您是今天内到达，请填写今天的日期，感谢您的配合`);
+        return;
+      }
+      this.setData({
+        isTimerStarted: true,
+        isTimerSetModalHidden: true,
+      });
+      this.resetTimerCurrent();
+      this.countDown();
+    },
+
+    resetTimerCurrent() {
+      this.setData({
+        timerCurrent: -1,
+      });
+      this.setData({
+        timerCurrent: 0,
+      })
+    },
+
+    modalTouchMove(e) {
+      console.log(e);
+    },
+
+    setDateArrival(e) {
+      let { value } = e.target;
+      this.setData({
+        currentDateArrival: value,
+      })
+    },
+
+    setTimeArrival(e) {
+      let { value } = e.target;
+      this.setData({
+        currentTimeArrival: value,
+      })
+    },
+
+    countDown() {
+      try {
+        let { currentTimeArrival, 
+          currentDateArrival, isTimerStarted, topTab, currentIndex } = this;
+        let end = new Date(`${currentDateArrival} ${currentTimeArrival}`);
+        let { mode, counter, totalMinutes } = diffTime(end);
+        let routeMode = modes[topTab];
+        let currentRouteInfo = this.$store.state.location[`${routeMode}RouteInfo`];
+        if (currentRouteInfo && currentRouteInfo[currentIndex] &&
+          currentRouteInfo[currentIndex].duration && 
+          currentRouteInfo[currentIndex].duration <= totalMinutes && 
+          isTimerStarted && mode === 'timing') {
+          this.setData({ counter, isLate: false });
+          setTimeout(this.countDown, 1000);
+        } else {
+          this.setData({ isLate: true });
+        }
+      } catch (error) {
+        console.log(error);
+        toast('计时器错误，请重试');
+      }
+    }
   },
 
   created () {
@@ -423,7 +644,8 @@ export default {
       console.log(error);
       toast('地图自动位移失败');
     }
-  }
+  },
+
 }
 </script>
 
@@ -440,21 +662,21 @@ export default {
   height: 100%;
 }
 
-.re-locate-btn-wrap {
-  width: 90%;
+.cover-btn-wrap {
+  width: 95%;
   margin: 0 auto;
   display: flex;
   flex-direction: row;
   justify-content: center;
 }
 
-.re-locate-btn-wrap-outer {
+.cover-btn-wrap-outer {
   position: absolute;
   bottom: 40rpx;
   width: 100%;
 }
 
-.re-locate-btn {
+.cover-btn {
   width: 250rpx;
   background: rgb(24, 25, 32);
   color: #fff;
@@ -467,6 +689,40 @@ export default {
   font-weight: bold;
   margin-left: auto;
   margin-right: auto;
+  height: 45rpx;
+}
+
+.cover-btn.short-btn {
+  width: 220rpx;
+}
+
+.cover-btn.short-btn.timer-btn {
+  background: #FBCC00;
+  color: #222;
+  border: 4rpx solid #222;
+  padding-bottom: 17rpx;
+}
+
+.cover-btn.circle-btn {
+  background: #fff;
+  width: 90rpx;
+  height: 50rpx;
+  color: #222;
+  border: solid .5rpx #aaa;
+}
+
+.back-icon {
+  height: 50rpx;
+  width: 50rpx;
+  margin: 0 auto;
+  margin-top: -3rpx;
+}
+
+.re-locate-icon {
+  height: 57rpx;
+  width: 57rpx;
+  margin: 0 auto;
+  margin-top: -2rpx;
 }
 
 .pannel-main-wrap {
@@ -524,6 +780,10 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
+}
+
+.hint-content.pure-text {
+  font-size: 76rpx;
 }
 
 .hint-content .number {
@@ -593,6 +853,31 @@ export default {
   padding-bottom: 10rpx;
 }
 
+.choose-dest-wrap.inside-modal {
+  margin-bottom: 55rpx;
+}
+
+.choose-dest.inside-modal {
+  margin: 20rpx auto;
+  z-index: 2000;
+  width: 80%;
+  align-items: flex-end;
+  width: 78%;
+}
+
+.inside-modal .dest-icon {
+  margin-left: 0;
+  margin-right: 0;
+  width: 68rpx;
+  height: 68rpx;
+}
+
+.inside-modal .dest-name {
+  margin-left: 20rpx;
+  padding-left: 5rpx;
+  font-size: 39rpx;
+}
+
 .middle-wrap {
   display: flex;
   flex-direction: row;
@@ -601,6 +886,13 @@ export default {
   height: 100%;
   align-items: center;
   margin-top: -20rpx;
+}
+
+.middle-wrap.timer {
+  justify-content: space-around;
+  margin-left: 0;
+  flex-wrap: wrap;
+  margin-top: 25rpx;
 }
 
 .choose-dest-btn {
@@ -682,5 +974,30 @@ export default {
 
 .pannel-main-swiper {
   width: 100%;
+}
+
+.timer-wrap {
+  display: flex;
+  flex-direction: row;
+  margin: 20rpx auto;
+  justify-content: space-around;
+  flex-wrap: wrap;
+}
+
+.time-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  margin: auto 10rpx;
+}
+
+.time-wrap .number {
+  font-family: 'Oswald';
+  font-size: 95rpx;
+}
+
+.time-wrap .unit {
+  margin-bottom: 20rpx;
+  font-size: 25rpx;
 }
 </style>

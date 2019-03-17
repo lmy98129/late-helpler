@@ -129,7 +129,6 @@ const direction = (opt) => {
               }
               break;
             case 'transit':
-              console.log(routes);
               for (let route of routes) {
                 let { steps, duration } = route;
                 let routeDistance = route.distance;
