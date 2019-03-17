@@ -631,6 +631,13 @@ export default {
         console.log(error);
         toast('计时器错误，请重试');
       }
+    },
+
+    routeStep() {
+      let { topTab, currentIndex } = this;
+      let routeMode = modes[topTab];
+      let url = `../steps/main?mode=${routeMode}&index=${currentIndex}`;
+      wx.navigateTo({ url });
     }
   },
 

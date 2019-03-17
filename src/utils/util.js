@@ -43,7 +43,7 @@ const diffTime = (end) => {
   let endTime = end.getTime();
   let startTime = new Date().getTime();
   let totalMicroSec = endTime - startTime;
-  let totalMinutes = parseInt(totalMicroSec / 60);
+  let totalMinutes = parseInt(totalMicroSec / 60000);
   if (totalMicroSec < 0) return { mode: 'timed-out', counter: {}, totalMinutes};
   else {
     return { mode: 'timing', counter: decomposeTime(totalMicroSec), totalMinutes};
