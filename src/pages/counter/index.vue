@@ -5,6 +5,11 @@
       <button @click="increment">+</button>
       <button @click="decrement">-</button>
     </p>
+    <p>
+      <button @click="startInterval">start interval</button>
+      <button @click="setNewInterval">set new interval</button>
+      <button @click="endInterval">end interval</button>
+    </p>
   </div>
 </template>
 
@@ -23,6 +28,21 @@ export default {
     },
     decrement () {
       this.$store.commit('counter/decrement');
+    },
+    startInterval() {
+      let timeout = 1000;
+      const foo = (msg) => () => console.log(msg);
+      this.$store.commit('polling/start', { timeout, callback: foo('Hello, blean!') });
+    },
+    endInterval() {
+      this.$store.commit('polling/end');
+    },
+    setNewInterval() {
+      this.$store.commit('polling/end');
+      let timeout = 1000;
+      let that = this;
+      const foo = (that) => () => that.increment();
+      this.$store.commit('polling/start', { timeout, callback: foo(this) });
     }
   },
 }
